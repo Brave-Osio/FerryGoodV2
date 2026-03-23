@@ -229,5 +229,45 @@ router.get('/meta/options', authenticate, async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 });
+// ============================================================
+// PATCH /api/schedules/:id/status — Update schedule status (admin only)
+// ============================================================
+router.patch('/:id/status', authenticate, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
 
+  const validStatuses = ['scheduled', 'boarding', 'departed', 'arrived', 'cancelled'];
+  if (!status || !validStatuses.includes(status)) {
+    return res.status(400).json({ success: false, message: 'Invalid status value.' });
+  }
+
+  try {
+    const rows = await query(`SELECT ScheduleID, Status FROM Schedules WHERE ScheduleID = ${id}`);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Schedule not found.' });
+
+    const oldStatus = rows[0].Status;
+
+    // If cancelling, also cancel all active bookings
+    if (status === 'cancelled') {
+      await execute(`
+        UPDATE ScheduleCustomers
+        SET Status = 'cancelled', RemovedAt = Now(), RemovedByID = ${req.user.userId},
+            RemovalReason = 'Schedule cancelled'
+        WHERE ScheduleID = ${id} AND Status NOT IN ('cancelled', 'boarded')
+      `);
+    }
+
+    await execute(`
+      UPDATE Schedules SET Status = ${escapeValue(status)}, UpdatedAt = Now()
+      WHERE ScheduleID = ${id}
+    `);
+
+    await auditLog(req.user.userId, req.user.username, 'UPDATE', 'Schedules', id,
+      `Status=${oldStatus}`, `Status=${status}`);
+
+    return res.json({ success: true, message: `Schedule status updated to ${status}.` });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
 module.exports = router;

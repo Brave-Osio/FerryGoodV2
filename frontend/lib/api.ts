@@ -49,6 +49,8 @@ export const schedulesAPI = {
   list: (params?: object) => api.get('/schedules', { params }),
   get: (id: number) => api.get(`/schedules/${id}`),
   getOptions: () => api.get('/schedules/meta/options'),
+  updateStatus: (id: number, status: string) =>  
+    api.patch(`/schedules/${id}/status`, { status }),
   assignCustomer: (scheduleId: number, data: object) =>
     api.post(`/schedules/${scheduleId}/assign`, data),
   removeCustomer: (scheduleId: number, assignmentId: number, reason?: string) =>

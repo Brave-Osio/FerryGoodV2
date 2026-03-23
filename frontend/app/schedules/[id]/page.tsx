@@ -1,5 +1,4 @@
 'use client';
-// app/schedules/[id]/page.tsx
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -14,13 +13,20 @@ import {
   Modal, SearchBar, Spinner
 } from '../../../components/ui';
 import {
-  ArrowLeft, Users, UserPlus, Trash2, ArrowRight,
-  Anchor, Clock, MapPin, Ship, Info
+  ArrowLeft, Users, UserPlus, Trash2, ArrowRight, Clock, ChevronDown
 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import type { ScheduleDetail, Customer, ScheduleCustomer } from '../../../types';
 import { Sidebar } from '../../../components/layout/Sidebar';
+
+const STATUS_OPTIONS = [
+  { value: 'scheduled', label: 'Scheduled',  color: 'text-blue-600' },
+  { value: 'boarding',  label: 'Boarding',   color: 'text-amber-600' },
+  { value: 'departed',  label: 'Departed',   color: 'text-teal-600' },
+  { value: 'arrived',   label: 'Arrived',    color: 'text-green-600' },
+  { value: 'cancelled', label: 'Cancelled',  color: 'text-red-600' },
+];
 
 export default function ScheduleDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,33 +34,42 @@ export default function ScheduleDetailPage() {
   const qc = useQueryClient();
   const { isAdmin, canWrite } = useAuth();
 
-  const [assignOpen,   setAssignOpen]   = useState(false);
-  const [removeTarget, setRemoveTarget] = useState<ScheduleCustomer | null>(null);
-  const [removeReason, setRemoveReason] = useState('');
-  const [custSearch,   setCustSearch]   = useState('');
-  const [custPage,     setCustPage]     = useState(1);
-  const [stagingList,  setStagingList]  = useState<Customer[]>([]);
+  const [assignOpen,    setAssignOpen]    = useState(false);
+  const [removeTarget,  setRemoveTarget]  = useState<ScheduleCustomer | null>(null);
+  const [removeReason,  setRemoveReason]  = useState('');
+  const [custSearch,    setCustSearch]    = useState('');
+  const [custPage,      setCustPage]      = useState(1);
+  const [statusOpen,    setStatusOpen]    = useState(false);
 
-  // Fetch schedule detail
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['schedule', id],
     queryFn: () => schedulesAPI.get(Number(id)),
     enabled: !!id,
   });
-  const schedule: ScheduleDetail | null = data?.data?.data ?? null;
+  const schedule: ScheduleDetail | null = (data as any)?.data?.data ?? null;
 
-  // Search available customers to assign
   const { data: custData, isLoading: custLoading } = useQuery({
     queryKey: ['customers-search', custSearch, custPage],
     queryFn: () => customersAPI.list({ search: custSearch, page: custPage, limit: 8 }),
     enabled: assignOpen && canWrite,
   });
-  const availableCustomers: Customer[] = custData?.data?.data ?? [];
+  const availableCustomers: Customer[] = (custData as any)?.data?.data ?? [];
   const assignedIds = new Set((schedule?.customers ?? [])
     .filter(c => c.BookingStatus !== 'cancelled')
     .map(c => c.CustomerID));
 
-  // Assign mutation
+  // Status update mutation
+  const statusMutation = useMutation({
+    mutationFn: (newStatus: string) => schedulesAPI.updateStatus(Number(id), newStatus),
+    onSuccess: (_, newStatus) => {
+      toast.success(`Status updated to ${newStatus}.`);
+      setStatusOpen(false);
+      qc.invalidateQueries({ queryKey: ['schedule', id] });
+      qc.invalidateQueries({ queryKey: ['schedules'] });
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  });
+
   const assignMutation = useMutation({
     mutationFn: (customerId: number) =>
       schedulesAPI.assignCustomer(Number(id), { customerId }),
@@ -65,7 +80,6 @@ export default function ScheduleDetailPage() {
     onError: (err) => toast.error(getErrorMessage(err)),
   });
 
-  // Remove mutation
   const removeMutation = useMutation({
     mutationFn: ({ assignmentId, reason }: { assignmentId: number; reason: string }) =>
       schedulesAPI.removeCustomer(Number(id), assignmentId, reason),
@@ -85,8 +99,9 @@ export default function ScheduleDetailPage() {
 
   const pct = schedule.Capacity > 0 ? schedule.AssignedCount / schedule.Capacity : 0;
   const activeCustomers = schedule.customers.filter(c => c.BookingStatus !== 'cancelled');
+  const currentStatusCfg = STATUS_OPTIONS.find(s => s.value === schedule.Status);
 
-return (
+  return (
     <div className="flex min-h-screen">
       <Sidebar />
       <main className="flex-1 overflow-auto bg-sand-50">
@@ -106,17 +121,17 @@ return (
                     <span className="text-3xl">{ferryTypeEmoji(schedule.FerryType)}</span>
                     <div>
                       <h1 className="font-display text-3xl font-semibold">{schedule.FerryName}</h1>
-                      <p className="text-sand-300/70 font-mono text-sm">{schedule.FerryCode} · {schedule.FerryType}</p>
+                      <p className="text-white/50 font-mono text-sm">{schedule.FerryCode} · {schedule.FerryType}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 mt-2">
                     <div>
                       <p className="font-mono font-bold text-seafoam text-lg">{schedule.OriginCode}</p>
-                      <p className="text-sand-300/70 text-xs">{schedule.OriginPort}</p>
+                      <p className="text-white/50 text-xs">{schedule.OriginPort}</p>
                     </div>
                     <div className="flex items-center gap-2 flex-1">
                       <div className="h-px flex-1 bg-white/20" />
-                      <div className="text-xs text-sand-300/60 text-center">
+                      <div className="text-xs text-white/40 text-center">
                         <Clock className="w-3 h-3 inline mr-1" />
                         {fmtDuration(schedule.EstDurationMin)}
                       </div>
@@ -125,14 +140,69 @@ return (
                     </div>
                     <div>
                       <p className="font-mono font-bold text-seafoam text-lg">{schedule.DestCode}</p>
-                      <p className="text-sand-300/70 text-xs">{schedule.DestPort}</p>
+                      <p className="text-white/50 text-xs">{schedule.DestPort}</p>
                     </div>
                   </div>
                 </div>
-                <ScheduleStatusBadge status={schedule.Status} />
+
+                {/* ── Status badge / dropdown ── */}
+                <div className="flex-shrink-0">
+                  {isAdmin ? (
+                    <div className="relative">
+                      <button
+                        onClick={() => setStatusOpen(v => !v)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold
+                                   bg-white/20 text-white border border-white/30
+                                   hover:bg-white/30 transition-all"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                        {currentStatusCfg?.label ?? schedule.Status}
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+
+                      {statusOpen && (
+                        <div className="absolute right-0 top-full mt-2 w-44 bg-white rounded-xl shadow-card-hover
+                                        border border-sand-300 overflow-hidden z-50">
+                          <p className="px-3 py-2 text-[10px] text-navy-300 uppercase tracking-wider font-semibold border-b border-sand-200">
+                            Change Status
+                          </p>
+                          {STATUS_OPTIONS.map(opt => (
+                            <button
+                              key={opt.value}
+                              disabled={opt.value === schedule.Status || statusMutation.isPending}
+                              onClick={() => statusMutation.mutate(opt.value)}
+                              className={cn(
+                                'flex items-center gap-2 w-full px-3 py-2.5 text-sm text-left transition-colors',
+                                opt.value === schedule.Status
+                                  ? 'bg-sand-100 text-navy-300 cursor-default'
+                                  : 'hover:bg-sand-50 text-navy'
+                              )}
+                            >
+                              {statusMutation.isPending && statusMutation.variables === opt.value ? (
+                                <Spinner size="sm" />
+                              ) : (
+                                <span className={cn('font-semibold text-xs', opt.color)}>{opt.label}</span>
+                              )}
+                              {opt.value === schedule.Status && (
+                                <span className="ml-auto text-[10px] text-navy-300">current</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // Non-admin: show plain white badge (visible on dark background)
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/20 text-white border border-white/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                      {currentStatusCfg?.label ?? schedule.Status}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
+            {/* Schedule metadata */}
             <div className="p-5 grid grid-cols-2 lg:grid-cols-4 gap-4 border-b border-sand-200">
               {[
                 { label: 'Departure', value: fmtDateTime(schedule.DepartureTime) },
@@ -147,6 +217,7 @@ return (
               ))}
             </div>
 
+            {/* Capacity */}
             <div className="p-5">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-semibold text-navy">Passenger Capacity</p>
