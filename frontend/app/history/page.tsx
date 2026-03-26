@@ -36,7 +36,7 @@ export default function HistoryPage() {
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['history', { search, status, page }],
-    queryFn: () => customersAPI.history({ search, scheduleStatus: status, page, limit: 20 }),
+    queryFn: () => customersAPI.history({ search, scheduleStatus: status, page, limit: 10 }),
     enabled: canWrite,
   });
 
@@ -46,9 +46,9 @@ export default function HistoryPage() {
   if (!canWrite) return null;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-auto bg-sand-50">
+      <main className="flex-1 overflow-y-auto bg-sand-50">
         <div className="max-w-[1400px] mx-auto p-8 space-y-6 animate-fade-in">
           {/* Header */}
           <div>
@@ -109,6 +109,7 @@ export default function HistoryPage() {
                   <table className="data-table">
                     <thead>
                       <tr>
+                        <th>#</th>
                         <th>Passenger</th>
                         <th>Contact</th>
                         <th>Schedule</th>
@@ -126,6 +127,9 @@ export default function HistoryPage() {
                     <tbody>
                       {records.map((r) => (
                         <tr key={r.AssignmentID}>
+                          <td>
+                            <span className="font-mono text-xs text-navy-300">#{r.CustomerID}</span>
+                          </td>
                           <td>
                             <p className="font-semibold text-navy text-sm">{r.FullName}</p>
                             <p className="text-xs text-navy-300 font-mono">{r.IDType} {r.IDNumber}</p>

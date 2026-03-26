@@ -26,14 +26,18 @@ router.get('/', authenticate, requireRole('admin', 'register'), async (req, res)
 
     let where = ['c.IsActive = Yes'];
     if (search) {
-      where.push(`(c.FirstName LIKE ${escapeValue('%' + search + '%')}
-        OR c.LastName LIKE ${escapeValue('%' + search + '%')}
-        OR c.Email LIKE ${escapeValue('%' + search + '%')}
-        OR c.Phone LIKE ${escapeValue('%' + search + '%')}
-        OR c.IDNumber LIKE ${escapeValue('%' + search + '%')})`);
+      const terms = search.trim().split(/\s+/);
+      const conditions = terms.map(term =>
+        `(c.FirstName LIKE ${escapeValue('%' + term + '%')}
+        OR c.LastName LIKE ${escapeValue('%' + term + '%')}
+        OR c.Email LIKE ${escapeValue('%' + term + '%')}
+        OR c.Phone LIKE ${escapeValue('%' + term + '%')}
+        OR c.IDNumber LIKE ${escapeValue('%' + term + '%')})`
+      );
+      where.push(conditions.join(' AND '));
     }
 
-    const allowedSorts = ['LastName', 'FirstName', 'Email', 'CreatedAt'];
+    const allowedSorts = ['CustomerID', 'LastName', 'FirstName', 'Email', 'CreatedAt'];
     const safeSort = allowedSorts.includes(sortBy) ? sortBy : 'CreatedAt';
     const safeDir = sortDir.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
@@ -198,11 +202,15 @@ router.get('/history/all', authenticate, requireRole('admin', 'register'), async
 
     let where = [];
     if (search) {
-      where.push(`(c.FirstName LIKE ${escapeValue('%' + search + '%')}
-        OR c.LastName LIKE ${escapeValue('%' + search + '%')}
-        OR c.Email LIKE ${escapeValue('%' + search + '%')}
-        OR f.FerryName LIKE ${escapeValue('%' + search + '%')}
-        OR po.PortName LIKE ${escapeValue('%' + search + '%')})`);
+      const terms = search.trim().split(/\s+/);
+      const conditions = terms.map(term =>
+        `(c.FirstName LIKE ${escapeValue('%' + term + '%')}
+        OR c.LastName LIKE ${escapeValue('%' + term + '%')}
+        OR c.Email LIKE ${escapeValue('%' + term + '%')}
+        OR c.Phone LIKE ${escapeValue('%' + term + '%')}
+        OR c.IDNumber LIKE ${escapeValue('%' + term + '%')})`
+      );
+      where.push(conditions.join(' AND '));
     }
     if (scheduleStatus) {
       where.push(`s.Status = ${escapeValue(scheduleStatus)}`);

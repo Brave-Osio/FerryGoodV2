@@ -143,3 +143,13 @@
   .text-balance { text-wrap: balance; }
   .animate-in { animation: slideUp 0.3s ease-out; }
 }
+
+/* Prevent full page scroll — only main content scrolls */
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+#__next {
+  height: 100%;
+}
