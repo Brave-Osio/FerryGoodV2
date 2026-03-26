@@ -81,6 +81,7 @@ export interface ScheduleDetail extends Schedule {
 
 export interface HistoryRecord {
   AssignmentID: number;
+  CustomerID: number;
   FullName: string;
   Email: string;
   Phone: string;

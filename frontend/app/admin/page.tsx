@@ -68,9 +68,9 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-auto bg-sand-50">
+      <main className="flex-1 overflow-y-auto bg-sand-50">
         <div className="max-w-[1200px] mx-auto p-8 space-y-6 animate-fade-in">
           {/* Header */}
           <div className="flex items-center justify-between">

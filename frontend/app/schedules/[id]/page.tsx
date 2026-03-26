@@ -102,9 +102,9 @@ export default function ScheduleDetailPage() {
   const currentStatusCfg = STATUS_OPTIONS.find(s => s.value === schedule.Status);
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-auto bg-sand-50">
+    <div className="flex h-screen overflow-hidden">
+    <Sidebar />
+    <main className="flex-1 overflow-y-auto bg-sand-50">
         <div className="max-w-[1400px] mx-auto p-8 space-y-6 animate-fade-in">
 
           {/* Back */}
