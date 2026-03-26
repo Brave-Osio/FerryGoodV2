@@ -1,9 +1,9 @@
 {
   "pages": {
-    "/page": [
+    "/customers/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
+      "static/chunks/app/customers/page.js"
     ],
     "/layout": [
       "static/chunks/webpack.js",
@@ -21,10 +21,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/layout.js"
     ],
-    "/customers/page": [
+    "/schedules/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/customers/page.js"
+      "static/chunks/app/schedules/page.js"
     ]
   }
 }
