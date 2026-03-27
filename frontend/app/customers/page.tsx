@@ -188,7 +188,7 @@ export default function CustomersPage() {
                     <thead>
                       <tr>
                         <th><SortButton field="CustomerID" current={sortBy} dir={sortDir} onSort={handleSort}>#</SortButton></th>
-                        <th><SortButton field="LastName" current={sortBy} dir={sortDir} onSort={handleSort}>Name</SortButton></th>
+                        <th>Name</th>
                         <th>Contact</th>
                         <th>ID</th>
                         <th>Nationality</th>

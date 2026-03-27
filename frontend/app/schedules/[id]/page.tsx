@@ -28,6 +28,11 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled',  color: 'text-red-600' },
 ];
 
+const TICKET_CLASSES = ['Economy', 'Business', 'First'];
+
+const EMPTY_ASSIGN_FORM = { seatNumber: '', ticketClass: 'Economy', fareAmount: '' };
+const EMPTY_FIELD_ERRORS = { seatNumber: '', fareAmount: '', customer: '' };
+
 export default function ScheduleDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -40,6 +45,9 @@ export default function ScheduleDetailPage() {
   const [custSearch,    setCustSearch]    = useState('');
   const [custPage,      setCustPage]      = useState(1);
   const [statusOpen,    setStatusOpen]    = useState(false);
+  const [assignForm,    setAssignForm]    = useState(EMPTY_ASSIGN_FORM);
+  const [selectedCust,  setSelectedCust]  = useState<Customer | null>(null);
+  const [fieldErrors,   setFieldErrors]   = useState(EMPTY_FIELD_ERRORS);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['schedule', id],
@@ -58,7 +66,6 @@ export default function ScheduleDetailPage() {
     .filter(c => c.BookingStatus !== 'cancelled')
     .map(c => c.CustomerID));
 
-  // Status update mutation
   const statusMutation = useMutation({
     mutationFn: (newStatus: string) => schedulesAPI.updateStatus(Number(id), newStatus),
     onSuccess: (_, newStatus) => {
@@ -71,10 +78,14 @@ export default function ScheduleDetailPage() {
   });
 
   const assignMutation = useMutation({
-    mutationFn: (customerId: number) =>
-      schedulesAPI.assignCustomer(Number(id), { customerId }),
+    mutationFn: (payload: { customerId: number; seatNumber: string; ticketClass: string; fareAmount: string }) =>
+      schedulesAPI.assignCustomer(Number(id), payload),
     onSuccess: () => {
       toast.success('Customer assigned successfully.');
+      setAssignForm(EMPTY_ASSIGN_FORM);
+      setSelectedCust(null);
+      setCustSearch('');
+      setFieldErrors(EMPTY_FIELD_ERRORS);
       qc.invalidateQueries({ queryKey: ['schedule', id] });
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -91,6 +102,27 @@ export default function ScheduleDetailPage() {
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });
+
+  function closeAssignModal() {
+    setAssignOpen(false);
+    setCustSearch('');
+    setAssignForm(EMPTY_ASSIGN_FORM);
+    setSelectedCust(null);
+    setFieldErrors(EMPTY_FIELD_ERRORS);
+  }
+
+  function handleAssignSubmit() {
+    const errors = { seatNumber: '', fareAmount: '', customer: '' };
+    if (!assignForm.seatNumber.trim()) errors.seatNumber = 'Seat number is required.';
+    if (!assignForm.fareAmount.trim()) errors.fareAmount = 'Fare amount is required.';
+    if (!selectedCust) errors.customer = 'Please select a passenger.';
+
+    setFieldErrors(errors);
+
+    if (errors.seatNumber || errors.fareAmount || errors.customer) return;
+
+    assignMutation.mutate({ customerId: selectedCust!.CustomerID, ...assignForm });
+  }
 
   if (isLoading) return <PageLoader />;
   if (isError || !schedule) return (
@@ -192,7 +224,6 @@ export default function ScheduleDetailPage() {
                       )}
                     </div>
                   ) : (
-                    // Non-admin: show plain white badge (visible on dark background)
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/20 text-white border border-white/30">
                       <span className="w-1.5 h-1.5 rounded-full bg-white" />
                       {currentStatusCfg?.label ?? schedule.Status}
@@ -328,56 +359,153 @@ export default function ScheduleDetailPage() {
           </div>
 
           {/* Assign Modal */}
-          <Modal open={assignOpen} onClose={() => { setAssignOpen(false); setCustSearch(''); }} title="Assign Passenger">
+          <Modal open={assignOpen} onClose={closeAssignModal} title="Assign Passenger">
             <div className="space-y-4">
-              <SearchBar
-                value={custSearch}
-                onChange={v => { setCustSearch(v); setCustPage(1); }}
-                placeholder="Search by name, email, ID..."
-              />
+
+              {/* Booking fields */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="label">Seat No. *</label>
+                  <input
+                    className={cn('input font-mono', fieldErrors.seatNumber && 'border-red-400 focus:ring-red-300')}
+                    placeholder="e.g. 12A"
+                    value={assignForm.seatNumber}
+                    onChange={e => {
+                      setAssignForm(f => ({ ...f, seatNumber: e.target.value }));
+                      if (fieldErrors.seatNumber) setFieldErrors(f => ({ ...f, seatNumber: '' }));
+                    }}
+                  />
+                  {fieldErrors.seatNumber && (
+                    <p className="text-xs text-red-500 mt-1">{fieldErrors.seatNumber}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="label">Class *</label>
+                  <select
+                    className="input"
+                    value={assignForm.ticketClass}
+                    onChange={e => setAssignForm(f => ({ ...f, ticketClass: e.target.value }))}
+                  >
+                    {TICKET_CLASSES.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  {/* Class always has a value so no error needed */}
+                </div>
+                <div>
+                  <label className="label">Fare (₱) *</label>
+                  <input
+                    className={cn('input font-mono', fieldErrors.fareAmount && 'border-red-400 focus:ring-red-300')}
+                    type="number"
+                    min="0"
+                    placeholder="0.00"
+                    value={assignForm.fareAmount}
+                    onChange={e => {
+                      setAssignForm(f => ({ ...f, fareAmount: e.target.value }));
+                      if (fieldErrors.fareAmount) setFieldErrors(f => ({ ...f, fareAmount: '' }));
+                    }}
+                  />
+                  {fieldErrors.fareAmount && (
+                    <p className="text-xs text-red-500 mt-1">{fieldErrors.fareAmount}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Customer search */}
+              <div className="border-t border-sand-200 pt-4">
+                <p className="text-xs text-navy-300 uppercase tracking-wider font-semibold mb-2">Select Passenger</p>
+                <SearchBar
+                  value={custSearch}
+                  onChange={v => { setCustSearch(v); setCustPage(1); setSelectedCust(null); }}
+                  placeholder="Search by name, email, ID..."
+                />
+              </div>
+
               {custLoading ? (
                 <div className="flex justify-center py-8"><Spinner /></div>
               ) : availableCustomers.length === 0 ? (
-                <div className="py-8 text-center text-navy-300 text-sm">No customers found.</div>
+                <div className="py-6 text-center text-navy-300 text-sm">No customers found.</div>
               ) : (
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {availableCustomers.map((c) => {
                     const alreadyAssigned = assignedIds.has(c.CustomerID);
+                    const isSelected = selectedCust?.CustomerID === c.CustomerID;
                     return (
                       <div
                         key={c.CustomerID}
+                        onClick={() => {
+                          if (!alreadyAssigned) {
+                            setSelectedCust(isSelected ? null : c);
+                            if (fieldErrors.customer) setFieldErrors(f => ({ ...f, customer: '' }));
+                          }
+                        }}
                         className={cn(
                           'flex items-center justify-between p-3 rounded-xl border transition-all',
                           alreadyAssigned
-                            ? 'border-seafoam/30 bg-seafoam/5 opacity-60'
-                            : 'border-sand-300 hover:border-ocean/30 hover:bg-ocean/5'
+                            ? 'border-seafoam/30 bg-seafoam/5 opacity-60 cursor-default'
+                            : isSelected
+                            ? 'border-ocean bg-ocean/5 ring-1 ring-ocean/30 cursor-pointer'
+                            : 'border-sand-300 hover:border-ocean/30 hover:bg-ocean/5 cursor-pointer'
                         )}
                       >
                         <div>
                           <p className="font-semibold text-navy text-sm">{c.FirstName} {c.LastName}</p>
                           <p className="text-xs text-navy-300">{c.Email} · {c.IDType} {c.IDNumber}</p>
                         </div>
-                        {alreadyAssigned ? (
-                          <span className="text-xs text-seafoam font-semibold">Assigned</span>
-                        ) : (
-                          <button
-                            className="btn-primary text-xs py-1.5 px-3"
-                            disabled={assignMutation.isPending}
-                            onClick={() => assignMutation.mutate(c.CustomerID)}
-                          >
-                            {assignMutation.isPending ? <Spinner size="sm" /> : '+ Assign'}
-                          </button>
-                        )}
+                        {alreadyAssigned
+                          ? <span className="text-xs text-seafoam font-semibold flex-shrink-0">Assigned</span>
+                          : isSelected
+                          ? <span className="text-xs text-ocean font-semibold flex-shrink-0">Selected ✓</span>
+                          : null
+                        }
                       </div>
                     );
                   })}
                 </div>
               )}
+
+              {/* Customer error — shown below the list */}
+              {fieldErrors.customer && (
+                <p className="text-xs text-red-500 -mt-2">{fieldErrors.customer}</p>
+              )}
+
+              {/* Confirm bar */}
+              {selectedCust && (
+                <div className="rounded-xl border border-ocean/20 bg-ocean/5 p-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs text-navy-300 mb-0.5">Assigning</p>
+                    <p className="text-sm font-semibold text-navy truncate">{selectedCust.FirstName} {selectedCust.LastName}</p>
+                    <p className="text-xs text-navy-300">
+                      Seat <span className="font-mono font-semibold text-ocean">{assignForm.seatNumber || '—'}</span>
+                      {' · '}{assignForm.ticketClass}
+                      {' · '}₱{assignForm.fareAmount || '—'}
+                    </p>
+                  </div>
+                  <button
+                    className="btn-primary text-sm flex-shrink-0"
+                    disabled={assignMutation.isPending}
+                    onClick={handleAssignSubmit}
+                  >
+                    {assignMutation.isPending ? <Spinner size="sm" /> : 'Assign'}
+                  </button>
+                </div>
+              )}
+
+              {/* Submit without selecting customer */}
+              {!selectedCust && (
+                <button
+                  className="btn-secondary w-full justify-center text-sm"
+                  onClick={handleAssignSubmit}
+                >
+                  Assign
+                </button>
+              )}
+
               <div className="flex justify-between items-center pt-2 border-t border-sand-200">
                 <Link href="/customers">
                   <button className="btn-ghost text-xs">+ Add new customer</button>
                 </Link>
-                <button className="btn-secondary" onClick={() => setAssignOpen(false)}>Done</button>
+                <button className="btn-secondary" onClick={closeAssignModal}>Done</button>
               </div>
             </div>
           </Modal>
