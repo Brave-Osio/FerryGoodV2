@@ -62,8 +62,8 @@ export function capacityColor(assigned: number, capacity: number) {
 
 export function capacityBarColor(assigned: number, capacity: number) {
   const pct = capacity > 0 ? assigned / capacity : 0;
-  if (pct >= 1)    return 'bg-red-500';
-  if (pct >= 0.85) return 'bg-amber-500';
+  if (pct >= 1)    return 'bg-red-600';
+  if (pct >= 0.85) return 'bg-amber-600';
   if (pct >= 0.6)  return 'bg-gold';
   return 'bg-seafoam';
 }
