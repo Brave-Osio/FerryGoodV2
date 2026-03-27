@@ -138,13 +138,19 @@ router.post('/:id/assign', authenticate, requireRole('admin', 'register'), async
     const cust = await query(`SELECT CustomerID FROM Customers WHERE CustomerID = ${customerId} AND IsActive = Yes`);
     if (!cust.length) return res.status(404).json({ success: false, message: 'Customer not found.' });
 
-    // Check not already assigned
+    // Check for any existing assignment (active or cancelled)
     const existing = await query(
-      `SELECT AssignmentID FROM ScheduleCustomers
-       WHERE ScheduleID = ${id} AND CustomerID = ${customerId} AND Status NOT IN ('cancelled')`
+      `SELECT AssignmentID, Status FROM ScheduleCustomers
+       WHERE ScheduleID = ${id} AND CustomerID = ${customerId}`
     );
+
     if (existing.length) {
-      return res.status(409).json({ success: false, message: 'Customer is already assigned to this schedule.' });
+      const record = existing[0];
+      if (record.Status !== 'cancelled') {
+        return res.status(409).json({ success: false, message: 'Customer is already assigned to this schedule.' });
+      }
+      // Previously removed — block reassignment
+      return res.status(409).json({ success: false, message: 'This customer was previously removed from this schedule and cannot be reassigned.' });
     }
 
     // Check capacity
@@ -157,6 +163,17 @@ router.post('/:id/assign', authenticate, requireRole('admin', 'register'), async
 
     if (capacity[0].BookedCount >= capacity[0].Capacity) {
       return res.status(409).json({ success: false, message: 'Ferry is at full capacity.' });
+    }
+
+    // Check seat number not already taken on this schedule
+    if (seatNumber && seatNumber.trim()) {
+      const seatTaken = await query(
+        `SELECT AssignmentID FROM ScheduleCustomers
+         WHERE ScheduleID = ${id} AND SeatNumber = ${escapeValue(seatNumber.trim())} AND Status NOT IN ('cancelled')`
+      );
+      if (seatTaken.length) {
+        return res.status(409).json({ success: false, message: `Seat ${seatNumber.trim()} is already taken on this schedule.` });
+      }
     }
 
     await execute(`
@@ -229,6 +246,7 @@ router.get('/meta/options', authenticate, async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 });
+
 // ============================================================
 // PATCH /api/schedules/:id/status — Update schedule status (admin only)
 // ============================================================
@@ -270,4 +288,5 @@ router.patch('/:id/status', authenticate, requireRole('admin'), async (req, res)
     return res.status(500).json({ success: false, message: err.message });
   }
 });
+
 module.exports = router;

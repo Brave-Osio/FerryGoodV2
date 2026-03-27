@@ -1,3 +1,6 @@
 {
-  "/customers/page": "app/customers/page.js"
+  "/schedules/[id]/page": "app/schedules/[id]/page.js",
+  "/schedules/page": "app/schedules/page.js",
+  "/history/page": "app/history/page.js",
+  "/dashboard/page": "app/dashboard/page.js"
 }
